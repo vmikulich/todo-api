@@ -9,10 +9,11 @@ async function login (req: Request, res: Response) {
   if (candidate) {
     const passwordResult = bcrypt.compareSync(req.body.password, candidate.password)
     if (passwordResult) {
+      console.log(`${process.env.JWT_SECRET}`)
       const token = jwt.sign({
         userId: candidate._id,
         email: candidate.email
-      }, `${process.env.JWT}`, {expiresIn: 3600})
+      }, `${process.env.JWT_SECRET}`, {expiresIn: 3600})
       res.status(200).json({
         token: `Bearer ${token}`
       })
