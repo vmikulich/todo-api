@@ -1,27 +1,47 @@
-import express from 'express'
-import * as Sentry from "@sentry/node"
-import * as Tracing from "@sentry/tracing"
+import express, { Application } from 'express'
+import passport from 'passport'
 import mongoose from 'mongoose'
+import compression from 'compression'
+import morgan from 'morgan'
 import cors from 'cors'
 import bodyParser from 'body-parser'
 import dotenv from 'dotenv'
+import * as Sentry from "@sentry/node"
+import * as Tracing from "@sentry/tracing"
+
+import { shouldCompress } from './middleware/compression'
+import passportMiddleware from './middleware/passport'
+import { authRouter } from './routers/auth'
+import { todoItemRouter } from './routers/todoItem'
 
 dotenv.config()
 
-export const app: express.Application = express()
+export const app: Application = express()
 
+mongoose.connect(`${process.env.MONGO_URI}`, { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('MongoDB connected'))
+  .catch(error => {
+    Sentry.captureException(error)
+  })
+
+app.use(passport.initialize())
+passportMiddleware(passport)
+
+app.use(compression({
+  filter: shouldCompress
+}))
+
+app.use(morgan('dev'))
 app.use(Sentry.Handlers.requestHandler());
 app.use(Sentry.Handlers.tracingHandler());
 app.use(bodyParser.urlencoded({extended: true}))
 app.use(bodyParser.json())
 app.use(cors())
 
-mongoose.connect(`${process.env.MONGO_URI}`, { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log('MongoDB connected'))
-  .catch(error => {
-    console.log(process.env.MONGO_URI)
-    console.log(error)
-  })
+app.use('/api/auth', authRouter)
+app.use('/api', todoItemRouter)
+
+
 
 Sentry.init({
   dsn: `${process.env.SENTRY_DSN}`,
@@ -33,9 +53,18 @@ Sentry.init({
   tracesSampleRate: 1.0,
 });
 
-app.get("/debug-sentry", function mainHandler(req, res) {
-  throw new Error("My first Sentry error!");
+// app.get("/debug-sentry", function mainHandler(req, res) {
+//   throw new Error("My first Sentry error!");
+// })
+
+app.get("/", (req, res) => {
+  res.send({msg: 'Hello', name: 'Vlad'})
 })
+
+// app.get('/', (req: express.Request, res: express.Response) => {
+//   const animal = 'elephant'
+//   res.send(animal.repeat(1000))
+// })
 
 app.use(Sentry.Handlers.errorHandler())
 
